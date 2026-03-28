@@ -1,23 +1,41 @@
-FROM node:18-slim AS deps
+# ===== DEPENDENCIES =====
+FROM node:18-alpine AS deps
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY package.json ./
-COPY package-lock.json* yarn.lock* pnpm-lock.yaml* ./
+COPY package.json package-lock.json* ./
+RUN npm ci --only=production --ignore-scripts && \
+    npm cache clean --force
 
-RUN if [ -f package-lock.json ]; then npm ci; \
-    elif [ -f yarn.lock ]; then yarn install --frozen-lockfile; \
-    elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm i --frozen-lockfile; \
-    else npm install; fi
-
-FROM node:18-slim AS build
+# ===== BUILDER =====
+FROM node:18-alpine AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+
+COPY package.json package-lock.json* ./
+RUN npm ci
+
 COPY . .
 RUN npm run build
 
-FROM node:18-slim AS runner
+# ===== RUNNER =====
+FROM node:18-alpine AS runner
 WORKDIR /app
+
 ENV NODE_ENV=production
-COPY --from=build /app ./
+ENV PORT=3001
+
+# Crear usuario no-root para seguridad
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 astro
+
+# Solo copiar lo necesario para ejecutar en producción
+COPY --from=builder --chown=astro:nodejs /app/dist ./dist
+COPY --from=builder --chown=astro:nodejs /app/package.json ./
+COPY --from=deps --chown=astro:nodejs /app/node_modules ./node_modules
+
+USER astro
+
 EXPOSE 3001
+
+# Usar el comando preview de Astro
 CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "3001"]
