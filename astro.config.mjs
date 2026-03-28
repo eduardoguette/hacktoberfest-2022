@@ -9,5 +9,14 @@ import preact from '@astrojs/preact'
 
 // https://astro.build/config
 export default defineConfig({
-	integrations: [svelte(), react(), vue(), tailwind(), image(), solidJs(), preact()]
+  integrations: [svelte(), react(), vue(), tailwind(), image(), solidJs(), preact()],
+  build: {
+    inlineStylesheets: 'auto',
+  },
+  vite: {
+    build: {
+      minify: 'terser',
+      cssMinify: true,
+    },
+  },
 })
