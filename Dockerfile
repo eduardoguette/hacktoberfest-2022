@@ -1,20 +1,17 @@
-# Usa una imagen base de Node.js
-FROM node:18-alpine
+FROM node:18-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
 
-# Crea y accede al directorio de la aplicación
-WORKDIR /usr/src/app
-
-# Copia los archivos necesarios para instalar las dependencias
-COPY package.json package-lock.json ./ 
-
-# Instala las dependencias
-RUN npm install
-
-# Copia el resto del código fuente al contenedor
+FROM node:18-alpine AS build
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN npm run build
 
-# Expone el puerto por el que se accede a la aplicación
+FROM node:18-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app ./
 EXPOSE 3001
-
-# Comando para iniciar la aplicación
-CMD ["npm", "start"]
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "3001"]
